@@ -70,3 +70,34 @@ def anthropic_mock() -> respx.MockRouter:
             return_value=httpx.Response(200, json=MOCK_ANTHROPIC_JSON)
         )
         yield mock  # type: ignore[misc]
+
+
+MOCK_OLLAMA_JSON = {
+    "model": "llama3.2",
+    "message": {"role": "assistant", "content": "The default pool size is 10."},
+    "done": True,
+    "done_reason": "stop",
+    "prompt_eval_count": 12,
+    "eval_count": 10,
+}
+
+
+@pytest.fixture
+def mock_ollama_response() -> ProviderResponse:
+    return ProviderResponse(
+        text="The default pool size is 10.",
+        model="llama3.2",
+        provider="ollama",
+        stop_reason="stop",
+        input_tokens=12,
+        output_tokens=10,
+    )
+
+
+@pytest.fixture
+def ollama_mock() -> respx.MockRouter:
+    with respx.mock(base_url="http://localhost:11434", assert_all_called=False) as mock:
+        mock.post("/api/chat").mock(
+            return_value=httpx.Response(200, json=MOCK_OLLAMA_JSON)
+        )
+        yield mock  # type: ignore[misc]

@@ -7,9 +7,16 @@ from alrf.providers.base import BaseProvider, ProviderResponse
 
 
 class OpenAIProvider(BaseProvider):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        base_url: str | None = None,
+        api_key: str | None = None,
+    ) -> None:
+        # base_url lets this adapter talk to any OpenAI-compatible local server
+        # (LM Studio, vLLM, llama.cpp) — leave None for the real OpenAI API
         self._client = AsyncOpenAI(
-            api_key=os.getenv("OPENAI_API_KEY", ""),
+            api_key=api_key or os.getenv("OPENAI_API_KEY", ""),
+            base_url=base_url,
             timeout=30.0,
         )
 
