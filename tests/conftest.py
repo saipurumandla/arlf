@@ -4,6 +4,13 @@ import respx
 
 from alrf.providers.base import ProviderResponse
 
+
+@pytest.fixture(autouse=True)
+def _dummy_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+
 MOCK_OPENAI_JSON = {
     "id": "chatcmpl-test",
     "object": "chat.completion",
