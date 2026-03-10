@@ -10,6 +10,7 @@ from alrf.evaluation.escalation import EscalationHandler
 from alrf.fallback.chain import FallbackChain
 from alrf.models.config import RouterConfig
 from alrf.models.response import RouterResult
+from alrf.observability.store import ObservabilityStore
 from alrf.providers.anthropic import AnthropicProvider
 from alrf.providers.ollama import OllamaProvider
 from alrf.providers.openai import OpenAIProvider
@@ -52,6 +53,7 @@ class Router:
         self._scorer = ConfidenceScorer()
         self._escalation = EscalationHandler()
         self._rag_hook = rag_hook
+        self._store = ObservabilityStore(self._config.observability_db_path)
 
     def _chain_for(self, decision: RoutingDecision) -> FallbackChain:
         cfg = self._config
@@ -117,7 +119,7 @@ class Router:
             confidence=confidence, escalated=escalated, attempts=attempts,
         )
 
-        return RouterResult(
+        result = RouterResult(
             answer=response.text,
             route=route,
             provider=response.provider,
@@ -129,3 +131,5 @@ class Router:
             rag_used=rag_used,
             decision_trace=trace,
         )
+        await self._store.record(query, result, self._config.policy)
+        return result
