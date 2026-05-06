@@ -1,10 +1,11 @@
 import json
 import re
+from typing import override
 
 import httpx
 import tiktoken
 
-from alrf.classifier.base import ClassifierResult, QueryComplexity, QueryIntent
+from alrf.classifier.base import BaseClassifier, ClassifierResult, QueryComplexity, QueryIntent
 
 _enc = tiktoken.get_encoding("cl100k_base")
 
@@ -50,7 +51,7 @@ def _parse(text: str) -> dict:
     return json.loads(match.group())
 
 
-class LLMClassifier:
+class LLMClassifier(BaseClassifier):
     """Classifies queries using a local Ollama model instead of keyword heuristics."""
 
     def __init__(
@@ -61,6 +62,7 @@ class LLMClassifier:
         self._base_url = base_url.rstrip("/")
         self._model = model
 
+    @override
     async def classify(self, query: str) -> ClassifierResult:
         if not query or not query.strip():
             raise ValueError("query must not be empty")

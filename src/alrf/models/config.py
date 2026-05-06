@@ -14,3 +14,6 @@ class RouterConfig(BaseModel):
     local_provider:        str   = "ollama"   # "ollama" | "lm_studio" | "vllm"
     local_base_url:        str   = "http://localhost:11434"
     observability_db_path: str   = ".alrf/routing.db"
+    classifier:            str   = "heuristic"  # "heuristic" | "llm"
+    llm_classifier_model:  str   = "llama3.2"
+    llm_classifier_url:    str   = "http://localhost:11434"

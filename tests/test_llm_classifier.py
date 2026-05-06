@@ -78,13 +78,11 @@ async def test_llm_classifier_confidence_higher_than_heuristic(clf: LLMClassifie
     assert result.confidence == 0.85
 
 
-def test_empty_query_raises(clf: LLMClassifier) -> None:
-    import asyncio
+async def test_empty_query_raises(clf: LLMClassifier) -> None:
     with pytest.raises(ValueError):
-        asyncio.run(clf.classify(""))
+        await clf.classify("")
 
 
-def test_too_long_query_raises(clf: LLMClassifier) -> None:
-    import asyncio
+async def test_too_long_query_raises(clf: LLMClassifier) -> None:
     with pytest.raises(ValueError):
-        asyncio.run(clf.classify("x" * 2001))
+        await clf.classify("x" * 2001)

@@ -15,7 +15,7 @@ _DETAIL_KW  = ("step by step", "walk me through", "in detail")
 class HeuristicClassifier(BaseClassifier):
 
     @override
-    def classify(self, query: str) -> ClassifierResult:
+    async def classify(self, query: str) -> ClassifierResult:
         if not query or not query.strip():
             raise ValueError("query must not be empty")
         if len(query) > 2000:

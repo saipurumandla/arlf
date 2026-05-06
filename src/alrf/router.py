@@ -5,6 +5,7 @@ import structlog
 from dotenv import load_dotenv
 
 from alrf.classifier.heuristic import HeuristicClassifier
+from alrf.classifier.llm import LLMClassifier
 from alrf.evaluation.confidence import ConfidenceScorer
 from alrf.evaluation.escalation import EscalationHandler
 from alrf.fallback.chain import FallbackChain
@@ -49,7 +50,14 @@ class Router:
         rag_hook: RAGHook | None = None,
     ) -> None:
         self._config = config or RouterConfig()
-        self._classifier = HeuristicClassifier()
+        self._classifier = (
+            LLMClassifier(
+                base_url=self._config.llm_classifier_url,
+                model=self._config.llm_classifier_model,
+            )
+            if self._config.classifier == "llm"
+            else HeuristicClassifier()
+        )
         self._scorer = ConfidenceScorer()
         self._escalation = EscalationHandler()
         self._rag_hook = rag_hook
@@ -76,7 +84,7 @@ class Router:
 
     async def run(self, query: str) -> RouterResult:
         cfg = self._config
-        clf_result = self._classifier.classify(query)
+        clf_result = await self._classifier.classify(query)
         policy = _POLICIES.get(cfg.policy, CostAwarePolicy())
         decision = policy.decide(clf_result, cfg)
 
