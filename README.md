@@ -63,6 +63,27 @@ print(f"routed to {result.provider} via {result.route} in {result.latency_ms}ms"
 print(f"confidence={result.confidence:.2f}  escalated={result.escalated}")
 ```
 
+## Classifiers
+
+By default ALRF uses a fast keyword heuristic to classify queries. Switch to the LLM classifier
+for better accuracy — it sends the query to a local Ollama model before routing:
+
+```python
+RouterConfig(
+    classifier="llm",
+    llm_classifier_model="llama3.2",   # any model in your Ollama library
+    llm_classifier_url="http://localhost:11434",
+)
+```
+
+The LLM classifier understands the *meaning* of the question, not just its surface keywords.
+If Ollama is unavailable it falls back to the heuristic automatically.
+
+| Classifier  | Latency overhead | Accuracy | Requires |
+|-------------|-----------------|----------|----------|
+| heuristic   | ~0ms            | Good for obvious cases, fragile on edge cases | nothing |
+| llm         | ~200-500ms      | Understands intent, handles ambiguous phrasing | Ollama running locally |
+
 ## Policies
 
 | Policy        | Routing                                      |

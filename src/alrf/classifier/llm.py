@@ -3,9 +3,13 @@ import re
 from typing import override
 
 import httpx
+import structlog
 import tiktoken
 
 from alrf.classifier.base import BaseClassifier, ClassifierResult, QueryComplexity, QueryIntent
+from alrf.classifier.heuristic import HeuristicClassifier
+
+logger = structlog.get_logger()
 
 _enc = tiktoken.get_encoding("cl100k_base")
 
@@ -61,6 +65,7 @@ class LLMClassifier(BaseClassifier):
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
+        self._fallback = HeuristicClassifier()
 
     @override
     async def classify(self, query: str) -> ClassifierResult:
@@ -69,8 +74,14 @@ class LLMClassifier(BaseClassifier):
         if len(query) > 2000:
             raise ValueError("query exceeds 2000 characters")
 
-        prompt = _PROMPT.format(query=query)
+        try:
+            return await self._call_ollama(query)
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError, ValueError) as exc:
+            await logger.awarning("llm_classifier_unavailable", error=str(exc), fallback="heuristic")
+            return await self._fallback.classify(query)
 
+    async def _call_ollama(self, query: str) -> ClassifierResult:
+        prompt = _PROMPT.format(query=query)
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{self._base_url}/api/chat",
@@ -82,9 +93,7 @@ class LLMClassifier(BaseClassifier):
                 timeout=30.0,
             )
             resp.raise_for_status()
-
         data = _parse(resp.json()["message"]["content"])
-
         return ClassifierResult(
             complexity=QueryComplexity(data.get("complexity", "moderate")),
             intent=QueryIntent(data.get("intent", "qa")),

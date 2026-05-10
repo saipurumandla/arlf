@@ -78,6 +78,27 @@ async def test_llm_classifier_confidence_higher_than_heuristic(clf: LLMClassifie
     assert result.confidence == 0.85
 
 
+async def test_falls_back_to_heuristic_when_ollama_unavailable() -> None:
+    clf = LLMClassifier()
+    with respx.mock(base_url="http://localhost:11434", assert_all_called=False) as mock:
+        mock.post("/api/chat").mock(side_effect=httpx.ConnectError("Connection refused"))
+        result = await clf.classify("What is Redis?")
+    assert result.complexity is not None
+    assert result.confidence != 0.85  # heuristic gives different confidence
+
+
+async def test_falls_back_on_bad_json_response() -> None:
+    body = {
+        "model": "llama3.2",
+        "message": {"role": "assistant", "content": "sorry I cannot classify that"},
+        "done": True, "done_reason": "stop", "prompt_eval_count": 5, "eval_count": 8,
+    }
+    with respx.mock(base_url="http://localhost:11434", assert_all_called=False) as mock:
+        mock.post("/api/chat").mock(return_value=httpx.Response(200, json=body))
+        result = await LLMClassifier().classify("What is Redis?")
+    assert result.complexity is not None  # heuristic fallback
+
+
 async def test_empty_query_raises(clf: LLMClassifier) -> None:
     with pytest.raises(ValueError):
         await clf.classify("")
