@@ -4,6 +4,7 @@ import time
 import structlog
 from dotenv import load_dotenv
 
+from alrf.cache.semantic import SemanticCache
 from alrf.classifier.heuristic import HeuristicClassifier
 from alrf.classifier.llm import LLMClassifier
 from alrf.evaluation.confidence import ConfidenceScorer
@@ -62,6 +63,14 @@ class Router:
         self._escalation = EscalationHandler()
         self._rag_hook = rag_hook
         self._store = ObservabilityStore(self._config.observability_db_path)
+        self._cache = (
+            SemanticCache(
+                db_path=self._config.observability_db_path,
+                threshold=self._config.cache_threshold,
+            )
+            if self._config.cache_enabled
+            else None
+        )
 
     def _chain_for(self, decision: RoutingDecision) -> FallbackChain:
         cfg = self._config
@@ -84,6 +93,13 @@ class Router:
 
     async def run(self, query: str) -> RouterResult:
         cfg = self._config
+
+        if self._cache is not None:
+            hit = await self._cache.lookup(query)
+            if hit is not None:
+                await logger.ainfo("cache_hit", route=hit.route, model=hit.model)
+                return hit
+
         clf_result = await self._classifier.classify(query)
         policy = _POLICIES.get(cfg.policy, CostAwarePolicy())
         decision = policy.decide(clf_result, cfg)
@@ -140,4 +156,6 @@ class Router:
             decision_trace=trace,
         )
         await self._store.record(query, result, self._config.policy)
+        if self._cache is not None:
+            await self._cache.store(query, result)
         return result

@@ -1,8 +1,16 @@
+from pathlib import Path
+
 import httpx
 import pytest
 import respx
 
 from alrf.providers.base import ProviderResponse
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # keeps the default .alrf/routing.db (and its cache table) per-test
+    monkeypatch.chdir(tmp_path)
 
 
 @pytest.fixture(autouse=True)

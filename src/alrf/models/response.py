@@ -14,3 +14,4 @@ class RouterResult(BaseModel):
     escalated:      bool
     rag_used:       bool
     decision_trace: list[dict]   # serialized steps
+    cached:         bool = False
