@@ -19,3 +19,5 @@ class RouterConfig(BaseModel):
     llm_classifier_url:    str   = "http://localhost:11434"
     cache_enabled:         bool  = True
     cache_threshold:       float = Field(0.95, ge=0.0, le=1.0)
+    cache_ttl_seconds:     int   = Field(3600, ge=1)
+    cache_max_entries:     int   = Field(1000, ge=1, le=100_000)

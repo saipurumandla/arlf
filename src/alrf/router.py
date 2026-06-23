@@ -67,6 +67,8 @@ class Router:
             SemanticCache(
                 db_path=self._config.observability_db_path,
                 threshold=self._config.cache_threshold,
+                ttl_seconds=self._config.cache_ttl_seconds,
+                max_entries=self._config.cache_max_entries,
             )
             if self._config.cache_enabled
             else None
