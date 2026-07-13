@@ -12,6 +12,7 @@ from alrf.evaluation.escalation import EscalationHandler
 from alrf.fallback.chain import FallbackChain
 from alrf.models.config import RouterConfig
 from alrf.models.response import RouterResult
+from alrf.observability.otel import configure_tracing, get_tracer, set_result_attributes
 from alrf.observability.store import ObservabilityStore
 from alrf.providers.anthropic import AnthropicProvider
 from alrf.providers.ollama import OllamaProvider
@@ -73,6 +74,8 @@ class Router:
             if self._config.cache_enabled
             else None
         )
+        configure_tracing(self._config.otel_endpoint)
+        self._tracer = get_tracer()
 
     def _chain_for(self, decision: RoutingDecision) -> FallbackChain:
         cfg = self._config
@@ -96,67 +99,84 @@ class Router:
     async def run(self, query: str) -> RouterResult:
         cfg = self._config
 
-        if self._cache is not None:
-            hit = await self._cache.lookup(query)
-            if hit is not None:
-                await logger.ainfo("cache_hit", route=hit.route, model=hit.model)
-                return hit
+        with self._tracer.start_as_current_span("router.run") as span:
+            if self._cache is not None:
+                hit = await self._cache.lookup(query)
+                if hit is not None:
+                    set_result_attributes(span, hit)
+                    await logger.ainfo("cache_hit", route=hit.route, model=hit.model)
+                    return hit
 
-        clf_result = await self._classifier.classify(query)
-        policy = _POLICIES.get(cfg.policy, CostAwarePolicy())
-        decision = policy.decide(clf_result, cfg)
+            with self._tracer.start_as_current_span("classify") as clf_span:
+                clf_result = await self._classifier.classify(query)
+                clf_span.set_attribute("complexity", clf_result.complexity.value)
+                clf_span.set_attribute("intent", clf_result.intent.value)
 
-        prompt = query
-        rag_used = False
-        if decision.use_rag and self._rag_hook is not None:
-            try:
-                chunks = await self._rag_hook.retrieve(query)
-                prompt = "[CONTEXT]\n" + "\n".join(chunks) + "\n\n" + query
-                rag_used = True
-            except Exception as exc:
-                await logger.awarning("rag_hook_failed", error=str(exc))
+            with self._tracer.start_as_current_span("policy") as policy_span:
+                policy = _POLICIES.get(cfg.policy, CostAwarePolicy())
+                decision = policy.decide(clf_result, cfg)
+                policy_span.set_attribute("policy", cfg.policy)
+                policy_span.set_attribute("tier", decision.tier)
 
-        attempts = 0
-        escalated = False
-        trace: list[dict] = []
-        t0 = time.monotonic()
+            prompt = query
+            rag_used = False
+            if decision.use_rag and self._rag_hook is not None:
+                try:
+                    chunks = await self._rag_hook.retrieve(query)
+                    prompt = "[CONTEXT]\n" + "\n".join(chunks) + "\n\n" + query
+                    rag_used = True
+                except Exception as exc:
+                    await logger.awarning("rag_hook_failed", error=str(exc))
 
-        while attempts < cfg.retry_budget:
-            response = await self._chain_for(decision).run(prompt)
-            attempts += 1
-            confidence = self._scorer.score(response, query)
-            trace.append({"tier": decision.tier, "provider": response.provider,
-                          "model": response.model, "confidence": confidence})
+            attempts = 0
+            escalated = False
+            trace: list[dict] = []
+            t0 = time.monotonic()
 
-            if self._escalation.should_escalate(confidence, cfg, attempts):
-                next_decision = self._escalation.escalate(decision, cfg)
-                if next_decision is not None:
-                    decision = next_decision
-                    escalated = True
-                    continue
-            break
+            while attempts < cfg.retry_budget:
+                with self._tracer.start_as_current_span("provider.call") as call_span:
+                    response = await self._chain_for(decision).run(prompt)
+                    call_span.set_attribute("provider", response.provider)
+                    call_span.set_attribute("model", response.model)
+                attempts += 1
+                confidence = self._scorer.score(response, query)
+                trace.append({"tier": decision.tier, "provider": response.provider,
+                              "model": response.model, "confidence": confidence})
 
-        latency_ms = int((time.monotonic() - t0) * 1000)
-        route = ("rag+" if rag_used else "") + decision.tier
+                if self._escalation.should_escalate(confidence, cfg, attempts):
+                    next_decision = self._escalation.escalate(decision, cfg)
+                    if next_decision is not None:
+                        with self._tracer.start_as_current_span("escalation") as esc_span:
+                            esc_span.set_attribute("from_tier", decision.tier)
+                            esc_span.set_attribute("to_tier", next_decision.tier)
+                        decision = next_decision
+                        escalated = True
+                        continue
+                break
 
-        await logger.ainfo(
-            "routing_decision",
-            route=route, provider=response.provider, model=response.model,
-            confidence=confidence, escalated=escalated, attempts=attempts,
-        )
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            route = ("rag+" if rag_used else "") + decision.tier
 
-        result = RouterResult(
-            answer=response.text,
-            route=route,
-            provider=response.provider,
-            model=response.model,
-            cost_usd=None,
-            latency_ms=latency_ms,
-            confidence=confidence,
-            escalated=escalated,
-            rag_used=rag_used,
-            decision_trace=trace,
-        )
+            await logger.ainfo(
+                "routing_decision",
+                route=route, provider=response.provider, model=response.model,
+                confidence=confidence, escalated=escalated, attempts=attempts,
+            )
+
+            result = RouterResult(
+                answer=response.text,
+                route=route,
+                provider=response.provider,
+                model=response.model,
+                cost_usd=None,
+                latency_ms=latency_ms,
+                confidence=confidence,
+                escalated=escalated,
+                rag_used=rag_used,
+                decision_trace=trace,
+            )
+            set_result_attributes(span, result)
+
         await self._store.record(query, result, self._config.policy)
         if self._cache is not None:
             await self._cache.store(query, result)

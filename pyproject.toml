@@ -20,6 +20,8 @@ dependencies = [
     "rich>=13.0",
     "click>=8.0",
     "numpy>=1.26",
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp>=1.30",
 ]
 
 [project.optional-dependencies]
