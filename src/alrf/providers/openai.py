@@ -1,4 +1,5 @@
 import os
+from collections.abc import AsyncIterator
 from typing import override
 
 from openai import AsyncOpenAI
@@ -35,3 +36,14 @@ class OpenAIProvider(BaseProvider):
             input_tokens=response.usage.prompt_tokens if response.usage else 0,
             output_tokens=response.usage.completion_tokens if response.usage else 0,
         )
+
+    @override
+    async def stream(self, prompt: str, model: str) -> AsyncIterator[str]:
+        stream = await self._client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            stream=True,
+        )
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content

@@ -1,4 +1,5 @@
 import os
+from collections.abc import AsyncIterator
 from typing import override
 
 from anthropic import AsyncAnthropic
@@ -32,3 +33,13 @@ class AnthropicProvider(BaseProvider):
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens,
         )
+
+    @override
+    async def stream(self, prompt: str, model: str) -> AsyncIterator[str]:
+        async with self._client.messages.stream(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text

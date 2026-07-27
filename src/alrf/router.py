@@ -1,5 +1,6 @@
 import os
 import time
+from collections.abc import AsyncIterator
 
 import structlog
 from dotenv import load_dotenv
@@ -16,6 +17,7 @@ from alrf.observability.otel import configure_tracing, get_tracer, set_result_at
 from alrf.observability.store import ObservabilityStore
 from alrf.providers.anthropic import AnthropicProvider
 from alrf.providers.ollama import OllamaProvider
+from alrf.providers.base import ProviderResponse
 from alrf.providers.openai import OpenAIProvider
 from alrf.rag.hook import RAGHook
 from alrf.routing.decision import RoutingDecision
@@ -76,6 +78,7 @@ class Router:
         )
         configure_tracing(self._config.otel_endpoint)
         self._tracer = get_tracer()
+        self._last_result: RouterResult | None = None
 
     def _chain_for(self, decision: RoutingDecision) -> FallbackChain:
         cfg = self._config
@@ -95,6 +98,16 @@ class Router:
             (AnthropicProvider(), cfg.reasoning_model),
             (OpenAIProvider(), "gpt-4o"),
         ])
+
+    async def _build_prompt(self, query: str, decision: RoutingDecision) -> tuple[str, bool]:
+        if not decision.use_rag or self._rag_hook is None:
+            return query, False
+        try:
+            chunks = await self._rag_hook.retrieve(query)
+        except Exception as exc:
+            await logger.awarning("rag_hook_failed", error=str(exc))
+            return query, False
+        return "[CONTEXT]\n" + "\n".join(chunks) + "\n\n" + query, True
 
     async def run(self, query: str) -> RouterResult:
         cfg = self._config
@@ -181,3 +194,54 @@ class Router:
         if self._cache is not None:
             await self._cache.store(query, result)
         return result
+
+    async def stream(self, query: str) -> AsyncIterator[str]:
+        cfg = self._config
+        clf_result = await self._classifier.classify(query)
+        policy = _POLICIES.get(cfg.policy, CostAwarePolicy())
+        decision = policy.decide(clf_result, cfg)
+        prompt, rag_used = await self._build_prompt(query, decision)
+        provider, model = self._chain_for(decision).primary
+
+        buffer: list[str] = []
+        t0 = time.monotonic()
+        async for chunk in provider.stream(prompt, model):
+            buffer.append(chunk)
+            yield chunk
+
+        answer = "".join(buffer)
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        # the tier is fixed once the first token is out, so a weak answer is flagged, not retried
+        confidence = self._scorer.score(
+            ProviderResponse(
+                text=answer,
+                model=model,
+                provider=decision.provider,
+                stop_reason="stop",
+                input_tokens=0,
+                output_tokens=len(buffer),
+            ),
+            query,
+        )
+        if confidence < cfg.escalation_threshold:
+            await logger.awarning("low_confidence_stream", confidence=confidence, route=decision.tier)
+
+        route = ("rag+" if rag_used else "") + decision.tier
+        self._last_result = RouterResult(
+            answer=answer,
+            route=route,
+            provider=decision.provider,
+            model=model,
+            cost_usd=None,
+            latency_ms=latency_ms,
+            confidence=confidence,
+            escalated=False,
+            rag_used=rag_used,
+            decision_trace=[{"tier": decision.tier, "provider": decision.provider,
+                             "model": model, "confidence": confidence}],
+        )
+        await self._store.record(query, self._last_result, cfg.policy)
+
+    @property
+    def last_result(self) -> RouterResult | None:
+        return self._last_result

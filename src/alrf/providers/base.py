@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
 
@@ -15,3 +16,7 @@ class ProviderResponse:
 class BaseProvider(ABC):
     @abstractmethod
     async def complete(self, prompt: str, model: str) -> ProviderResponse: ...
+
+    async def stream(self, prompt: str, model: str) -> AsyncIterator[str]:
+        response = await self.complete(prompt, model)
+        yield response.text
