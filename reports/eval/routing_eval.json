@@ -1,0 +1,11 @@
+{
+  "cases": 20,
+  "policy": "cost_aware",
+  "tier_accuracy": 0.55,
+  "cost_usd_routed": 0.0072,
+  "cost_usd_always_reasoning": 0.18,
+  "cost_delta_pct": -96.0,
+  "escalation_precision": null,
+  "escalation_recall": null,
+  "cache_hit_rate": null
+}
