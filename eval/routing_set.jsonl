@@ -1,0 +1,20 @@
+{"query": "What is Redis?", "expected_tier": "local", "expects_escalation": false, "note": "one-line factual lookup, no context needed"}
+{"query": "What port does postgres listen on by default?", "expected_tier": "local", "expects_escalation": false, "note": "constant lookup"}
+{"query": "Is JSONB indexed by default in postgres?", "expected_tier": "local", "expects_escalation": false, "note": "yes/no fact"}
+{"query": "What does the 429 status code mean?", "expected_tier": "local", "expects_escalation": false, "note": "spec lookup"}
+{"query": "Give me the syntax for a python dataclass", "expected_tier": "local", "expects_escalation": false, "note": "syntax recall"}
+{"query": "How do I set a timeout on an httpx client?", "expected_tier": "fast", "expects_escalation": false, "note": "small API question"}
+{"query": "How does connection pooling work in asyncpg?", "expected_tier": "fast", "expects_escalation": false, "note": "conceptual but shallow"}
+{"query": "Compare gunicorn and uvicorn for serving an async app", "expected_tier": "fast", "expects_escalation": false, "note": "comparison, well-trodden ground"}
+{"query": "What is the difference between a task and a future in asyncio?", "expected_tier": "fast", "expects_escalation": false, "note": "definitional comparison"}
+{"query": "Write a function that chunks a list into batches of n", "expected_tier": "fast", "expects_escalation": false, "note": "small code request"}
+{"query": "Explain why my celery worker keeps losing tasks after a deploy", "expected_tier": "reasoning", "expects_escalation": true, "note": "operational debugging with missing context"}
+{"query": "Why is this test flaky?", "expected_tier": "reasoning", "expects_escalation": true, "note": "short but hard - the heuristic reads it as easy"}
+{"query": "Why does my connection pool exhaust under load and how do I fix it without raising the pool size?", "expected_tier": "reasoning", "expects_escalation": false, "note": "multi-part debugging"}
+{"query": "Walk me through implementing exponential backoff with jitter and a circuit breaker in an async client, step by step", "expected_tier": "reasoning", "expects_escalation": false, "note": "long implementation request"}
+{"query": "Design a sharding strategy for a postgres table that has outgrown a single node, and explain the tradeoffs of hash versus range partitioning for our access pattern", "expected_tier": "reasoning", "expects_escalation": false, "note": "architecture with tradeoffs"}
+{"query": "Our p99 latency tripled after we moved the service to kubernetes but cpu and memory look flat, what should I look at first?", "expected_tier": "reasoning", "expects_escalation": false, "note": "open-ended diagnosis"}
+{"query": "Fix this code: it raises a KeyError on the second call", "expected_tier": "fast", "expects_escalation": true, "note": "small fix, but the error is not shown"}
+{"query": "What causes a python traceback to show the wrong line number?", "expected_tier": "fast", "expects_escalation": false, "note": "causal but narrow"}
+{"query": "Implement a rate limiter that shares state across processes", "expected_tier": "reasoning", "expects_escalation": false, "note": "distributed design in a code request"}
+{"query": "Summarize what a write-ahead log does", "expected_tier": "local", "expects_escalation": false, "note": "textbook definition"}
