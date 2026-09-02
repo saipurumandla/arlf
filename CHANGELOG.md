@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.0 — August 2026
+
+### Phase 4 — Caching, Tracing, Streaming, Evals (Jun–Aug 2026)
+- Semantic cache: embedding similarity lookup before the classifier, `cached=True` and zero cost on a hit
+- Cache TTL and LRU eviction at `cache_max_entries`, hit rate recorded per route
+- OpenTelemetry spans per `Router.run()` with child spans for classify, policy, provider call, escalation
+- `Router.stream()` yielding tokens, confidence scored on the completed buffer, no mid-stream escalation
+- Streaming adapters for OpenAI, Anthropic and Ollama; Gemini yields a single chunk
+- Routing eval harness over a 20-case labelled set: tier accuracy 55%, cost 96% below always-reasoning
+
 ## v0.1.0 — April 2026
 
 ### Phase 3 — Observability, Explainability, CLI (Mar–Apr 2026)
